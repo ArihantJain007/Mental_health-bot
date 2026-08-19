@@ -38,37 +38,60 @@ Streamlit UI
 
 ---
 
-## 3. Current Phase
-**PHASE 3 — FINE-TUNE DISTILBERT CLASSIFIER** (Implementation Completed & Verified via Smoke Test)
+3. Current Phase
 
-Phase 3 implementation is complete and verified:
-- `src/models/distilbert_classifier.py` — robust training & smoke test pipeline supporting class-weighted loss, CUDA/CPU fallback, checkpoint save/resume, validation Macro F1 selection, and single test set evaluation.
-- `notebooks/03_distilbert_finetuning.ipynb` — Colab-ready notebook with Google Drive artifact persistence and automatic dataset sync.
-- **Local Smoke Test**: Executed and PASSED cleanly on CPU.
-- **Full 3-epoch training**: Deferred to Google Colab GPU by design (full train blocked on CPU without CUDA).
+PHASE 3 — FINE-TUNE DISTILBERT CLASSIFIER (Completed & Verified)
+
+Phase 3 implementation and full GPU training are complete.
+
+src/models/distilbert_classifier.py — robust training & smoke test pipeline supporting class-weighted loss, CUDA/CPU fallback, checkpoint save/resume, validation Macro F1 selection, and single test set evaluation.
+notebooks/03_distilbert_finetuning.ipynb — Colab-ready notebook with Google Drive artifact persistence.
+Local Smoke Test: Passed successfully on CPU.
+Full Training: Completed successfully on Google Colab using an NVIDIA Tesla T4 GPU.
+Best Validation Macro F1: 0.7995
+Final Test Macro F1: 0.7854
+Final Test Accuracy: 0.8194
+Final Test Weighted F1: 0.8203
 
 ---
 
-## 4. Dataset Source & Status
-- **Kaggle Dataset**: [Sentiment Analysis for Mental Health](https://www.kaggle.com/datasets/suchintikasarkar/sentiment-analysis-for-mental-health)
-- **Raw Path**: `data/raw/Combined Data.csv` (`53,043` rows)
-- **Cleaned Path**: `data/processed/cleaned_mental_health_data.csv` (`51,055` rows)
+4. Dataset Source & Status
+Kaggle Dataset: Sentiment Analysis for Mental Health
+Raw Path: data/raw/Combined Data.csv (53,043 rows)
+Cleaned Path: data/processed/cleaned_mental_health_data.csv (51,055 rows)
+Dataset Cleaning Summary
+
+The raw dataset was conservatively cleaned before model development.
+
+362 missing statement values were removed.
+Exact duplicate statements were removed.
+18 unique statements with conflicting labels were removed, corresponding to 49 rows.
+No stopword removal, stemming, lemmatization, blanket punctuation removal, or emoji removal was performed.
+Raw data was preserved separately from processed data.
 
 ---
 
-## 5. Environment & Setup Details
-- **Python Version**: `3.13.3` (local); Colab GPU runtime recommended for Phase 3 full training
-- **Virtual Environment**: `.venv`
-- **Installed Package Versions (local smoke test)**:
-  - `pandas`: `3.0.5`
-  - `numpy`: `2.5.2`
-  - `scikit-learn`: `1.9.0`
-  - `matplotlib`: `3.11.1`
-  - `seaborn`: `0.13.2`
-  - `joblib`: `1.5.3`
-  - `jupyter`: `1.1.1` (notebook `7.6.2`)
-  - `torch`: `2.13.0+cpu`
-  - `transformers`: `5.15.1`
+5. Environment & Setup Details
+Local Environment
+Python Version: 3.13.3
+Virtual Environment: .venv
+Local Package Versions
+pandas: 3.0.5
+numpy: 2.5.2
+scikit-learn: 1.9.0
+matplotlib: 3.11.1
+seaborn: 0.13.2
+joblib: 1.5.3
+jupyter: 1.1.1 (notebook 7.6.2)
+torch: 2.13.0+cpu
+transformers: 5.15.1
+Colab Training Environment
+Platform: Google Colab
+GPU: NVIDIA Tesla T4
+PyTorch: 2.11.0+cu128
+CUDA: Available
+
+The local machine was used for implementation and smoke testing. Full DistilBERT training was performed on the Colab GPU.
 
 ---
 
@@ -214,6 +237,11 @@ Fixed canonical order used consistently across all evaluation reports, confusion
 - **Test Macro F1**: `0.7165`
 - **Test Weighted F1**: `0.7737`
 
+Baseline Limitations
+Strong performance on the majority Normal class.
+Lower recall and F1 for Stress and Personality disorder.
+Linear TF-IDF features have difficulty representing contextual distinctions between semantically overlapping categories such as Depression and Suicidal.
+
 #### Test Set Per-Class Detailed Results:
 | Class | Precision | Recall | F1-Score | Support |
 | :--- | :--- | :--- | :--- | :--- |
@@ -227,103 +255,208 @@ Fixed canonical order used consistently across all evaluation reports, confusion
 
 ---
 
-## 11. Key Observations & Known Baseline Limitations
-1. **Majority vs Minority Class Gap**: `Normal` achieves an F1 of `0.9213` on the test set, whereas minority classes like `Personality disorder` (F1 `0.5468`) and `Stress` (F1 `0.6093`) suffer from limited training instances despite class-weight balancing.
-2. **Semantic Ambiguity**: Overlap between `Depression` and `Suicidal` statements leads to confusion in linear bag-of-words models due to shared vocabulary ("hopeless", "sad", "give up").
-3. **Motivation for Phase 3 (DistilBERT)**: Deep contextual embeddings from DistilBERT are expected to improve contextual distinction on overlapping and minority mental health categories.
+11. Phase 3 — DistilBERT Fine-Tuning
+Model & Implementation
+Model: distilbert-base-uncased
+Module: src/models/distilbert_classifier.py
+Notebook: notebooks/03_distilbert_finetuning.ipynb
+Tokenizer: DistilBertTokenizerFast
+Maximum Sequence Length: 256
+Loss: Class-weighted CrossEntropyLoss
+Class weights calculated using training labels only.
+Checkpoint Selection: Validation Macro F1
+Test Evaluation: Held-out test set evaluated once after best-model selection.
+CUDA Guard: Full training exits safely when CUDA is unavailable.
+Checkpoint Resume: Supported through the training pipeline.
+Tokenization Statistics
+Median token length: 75
+90th percentile: 328
+Maximum sequence length: 256
+Training truncation rate: 15.17%
+Validation truncation rate: 15.02%
+Test truncation rate: 15.53%
+Training Configuration
+Training Platform: Google Colab
+GPU: NVIDIA Tesla T4
+PyTorch: 2.11.0+cu128
+Epochs: 3
+Batch Size: 16
+Learning Rate: 2e-5
+Weight Decay: 0.01
+Warmup: 10%
+Random Seed: 42
+Class Weights
 
----
+Calculated exclusively from the training set:
 
-## 12. Exact Commands to Reproduce Phase 2
+Label	Weight
+Anxiety	2.0162
+Bipolar	2.9160
+Depression	0.4837
+Normal	0.4548
+Personality disorder	8.1492
+Stress	3.1815
+Suicidal	0.6859
+Validation Results by Epoch
+Epoch	Validation Accuracy	Validation Macro F1	Validation Weighted F1
+1	0.7926	0.7594	0.7936
+2	0.8176	0.7969	0.8190
+3	0.8251	0.7995	0.8257
+Best Checkpoint
+Best Epoch: 3
+Best Checkpoint: checkpoint-7659
+Validation Macro F1: 0.7995
+Final Test Results
 
-### Virtual Environment Activation:
-```bash
-# Windows (PowerShell):
+The selected best checkpoint was evaluated once on the held-out test set.
+
+Metric	DistilBERT
+Test Accuracy	0.8194
+Test Macro F1	0.7854
+Test Weighted F1	0.8203
+DistilBERT vs LinearSVC
+Model	Validation Macro F1	Test Macro F1	Test Accuracy
+LinearSVC	0.7392	0.7165	0.7763
+DistilBERT	0.7995	0.7854	0.8194
+Improvement Over Baseline
+LinearSVC Test Macro F1: 0.7165
+DistilBERT Test Macro F1: 0.7854
+Absolute improvement: +0.0689
+Relative improvement: approximately 9.62%
+Training Runtime
+Approximate full training runtime: 864 seconds (~14.4 minutes)
+Local Inference Verification
+
+The trained Colab model was downloaded locally and successfully loaded using the saved model and tokenizer.
+
+Sample input:
+
+I feel anxious and overwhelmed by everything today.
+
+Prediction:
+
+Predicted label: Anxiety
+Prediction probability: approximately 99.71%
+
+This verifies that the trained model can be loaded and used for local inference.
+
+Saved Artifacts
+
+The final model artifacts are stored:
+
+Locally
+
+models/distilbert/
+
+Google Drive backup
+
+MyDrive/mental-healthbot/models/distilbert/
+
+Artifacts include:
+
+best_model/
+tokenizer/
+label_mapping.json
+metadata.json
+checkpoints/
+plots/
+
+The trained model files are intentionally excluded from GitHub through .gitignore.
+
+12. Exact Commands to Reproduce Phase 1 & Phase 2
+Virtual Environment Activation
+# Windows PowerShell
 .venv\Scripts\activate
 
-# Linux/macOS:
+# Linux/macOS
 source .venv/bin/activate
-```
-
-### Run Baseline Pipeline:
-```bash
+Run Data Cleaning Pipeline
+python -m src.data.cleaning
+Run Baseline Pipeline
 python -m src.models.baseline
-```
-
-### Run Baseline Notebook:
-```bash
+Run Baseline Notebook
 jupyter notebook notebooks/02_baseline_classifier.ipynb
-```
-
----
-
-## 13. Phase 3 — DistilBERT Fine-Tuning
-
-### Implementation Summary
-- **Model**: `distilbert-base-uncased`
-- **Module**: `src/models/distilbert_classifier.py`
-- **Notebook**: `notebooks/03_distilbert_finetuning.ipynb` (Google Colab + Google Drive)
-- **Max sequence length**: `256`
-- **Loss**: Class-weighted `CrossEntropyLoss` computed from **train labels only**
-- **Checkpoint selection**: Validation **Macro F1** (`metric_for_best_model="macro_f1"`)
-- **Test evaluation**: Held-out test set evaluated **once** after best model selection
-- **CUDA guard**: `--full-train` exits safely if no GPU is available
-- **Resume**: `--resume` loads latest checkpoint from `output_dir/checkpoints/`
-
-### Local Smoke Test (Windows CPU — verified, no full training)
-```bash
+13. Phase 3 Reproduction & Colab Workflow
+Local Smoke Test
 python -m src.models.distilbert_classifier --smoke-test
-```
+Google Colab Training
 
-Smoke test verifies:
-- Tokenizer load
-- Model initialization
-- Class weight calculation
-- Micro-batch forward pass
-- Weighted loss computation
-- Checkpoint save/load
-- Sample inference with predicted class and softmax probabilities
+Full training was performed successfully on an NVIDIA Tesla T4 GPU.
 
-### Google Colab Full Training Command
-Upload Phase 2 split CSVs to Google Drive at:
-`MyDrive/mental-health-chatbot/data/processed/splits/`
+The Colab notebook is:
 
-Then run:
-```bash
-python -m src.models.distilbert_classifier --full-train \
-    --data-dir /content/drive/MyDrive/mental-health-chatbot/data/processed/splits \
-    --output-dir /content/drive/MyDrive/mental-health-chatbot/models/distilbert \
-    --num-epochs 3 \
-    --batch-size 16 \
-    --lr 2e-5
-```
+notebooks/03_distilbert_finetuning.ipynb
 
-Resume interrupted training:
-```bash
-python -m src.models.distilbert_classifier --full-train --resume \
-    --data-dir /content/drive/MyDrive/mental-health-chatbot/data/processed/splits \
-    --output-dir /content/drive/MyDrive/mental-health-chatbot/models/distilbert
-```
+The Phase 2 split CSVs are loaded into the Colab workspace without recreating or reshuffling them.
 
-### Expected Colab Artifacts (Google Drive)
-| Path | Description |
-| :--- | :--- |
-| `models/distilbert/checkpoints/` | Epoch checkpoints for resume |
-| `models/distilbert/best_model/` | Best validation Macro F1 model |
-| `models/distilbert/tokenizer/` | Saved tokenizer |
-| `models/distilbert/label_mapping.json` | Canonical label mapping |
-| `models/distilbert/metadata.json` | Training config, class weights, val/test metrics |
-| `models/distilbert/plots/` | Validation and test confusion matrices |
+Full Training Configuration
+Model: distilbert-base-uncased
+Epochs: 3
+Batch Size: 16
+Learning Rate: 2e-5
+Max Length: 256
+Loss: Class-weighted CrossEntropyLoss
+Seed: 42
+Selection Metric: Validation Macro F1
+Google Drive Artifact Location
+MyDrive/mental-healthbot/models/distilbert/
 
-### DistilBERT Metrics Status
-**Not yet recorded** — full training has not been executed on Colab GPU in this session. After Colab training, update this section with validation/test metrics from `metadata.json`.
+The Google Drive copy is the persistent backup of the trained model and checkpoints.
 
-### Baseline Comparison Targets (Phase 2 LinearSVC)
-- Validation Macro F1: `0.7392`
-- Test Macro F1: `0.7165`
+14. Current Results Summary
+Final Model
 
----
+Fine-tuned DistilBERT
 
-## 14. Next Phase
-**PHASE 4 — STREAMLIT UI + GEMINI INTEGRATION**
-- Build Streamlit chat interface wiring DistilBERT predictions to Gemini conversational responses.
+Benchmark
+
+LinearSVC Test Macro F1: 0.7165
+
+Final DistilBERT Performance
+Validation Macro F1: 0.7995
+Test Macro F1: 0.7854
+Test Accuracy: 0.8194
+Test Weighted F1: 0.8203
+Conclusion
+
+Fine-tuning DistilBERT produced a substantial improvement over the classical LinearSVC baseline on the held-out test set.
+
+The primary benchmark improved from:
+
+0.7165 → 0.7854 Test Macro F1
+
+This represents an absolute improvement of:
+
++0.0689
+
+The current DistilBERT model is the selected classification model for the application.
+
+15. Next Phase
+
+PHASE 4 — STREAMLIT UI + GEMINI INTEGRATION
+
+Planned work:
+
+Build the Streamlit chat interface.
+Load the fine-tuned DistilBERT model and tokenizer.
+Accept user text input.
+Generate a mental-health category prediction and prediction probability.
+Pass the user statement and classifier context to the Gemini API.
+Generate a compassionate, non-diagnostic conversational response.
+Display the conversation through the Streamlit interface.
+
+The architecture remains:
+
+User Statement
+      ↓
+Streamlit UI
+      ↓
+DistilBERT Classifier
+      ↓
+Category + Prediction Probability
+      ↓
+Gemini API
+      ↓
+Conversational Response
+      ↓
+Streamlit UI
