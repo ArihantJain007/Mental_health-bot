@@ -20,7 +20,7 @@ User Input ──► Streamlit UI ──► Fine-tuned DistilBERT ──► Pred
 
 - **Phase 1: Dataset Exploration & Cleaning** (Completed)
 - **Phase 2: Baseline Text Classifier** (Completed)
-- **Phase 3: Fine-tune DistilBERT Classifier** (Next)
+- **Phase 3: Fine-tune DistilBERT Classifier** (In Progress — train on Colab GPU)
 
 ---
 
@@ -43,7 +43,8 @@ mental-health-chatbot/
 │
 ├── notebooks/
 │   ├── 01_data_exploration.ipynb # Data exploration & cleaning notebook
-│   └── 02_baseline_classifier.ipynb # Baseline classifier notebook
+│   ├── 02_baseline_classifier.ipynb # Baseline classifier notebook
+│   └── 03_distilbert_finetuning.ipynb # DistilBERT fine-tuning (Colab GPU)
 │
 ├── src/
 │   ├── __init__.py
@@ -52,17 +53,12 @@ mental-health-chatbot/
 │   │   └── cleaning.py          # Modular dataset cleaning pipeline
 │   └── models/
 │       ├── __init__.py
-│       └── baseline.py          # Baseline modeling pipeline
+│       ├── baseline.py          # Baseline modeling pipeline
+│       └── distilbert_classifier.py # DistilBERT fine-tuning pipeline
 │
 ├── models/
-│   └── baseline/                # Persisted vectorizer & baseline models
-│       ├── metadata.json         # Experiment parameters & reproducibility config
-│       ├── tfidf_vectorizer.joblib # TF-IDF vectorizer (274,360 features)
-│       ├── logistic_regression.joblib # Logistic Regression model artifact
-│       ├── linear_svc.joblib     # LinearSVC model artifact (Winning Baseline)
-│       ├── cm_val_logistic_regression.png
-│       ├── cm_val_linear_svc.png
-│       └── cm_test_selected_baseline.png
+│   ├── baseline/                # Persisted vectorizer & baseline models
+│   └── distilbert/              # DistilBERT checkpoints & best model (Colab output)
 │
 ├── app/                          # Streamlit UI placeholder
 │
@@ -98,12 +94,37 @@ python -m src.data.cleaning
 python -m src.models.baseline
 ```
 
+#### Phase 3 DistilBERT — Local Smoke Test (CPU-safe, no full training):
+```bash
+python -m src.models.distilbert_classifier --smoke-test
+```
+
+#### Phase 3 DistilBERT — Full Training (CUDA GPU only, e.g. Google Colab):
+```bash
+python -m src.models.distilbert_classifier --full-train \
+    --data-dir data/processed/splits \
+    --output-dir models/distilbert \
+    --num-epochs 3 \
+    --batch-size 16 \
+    --lr 2e-5
+```
+
+Resume from the latest checkpoint:
+```bash
+python -m src.models.distilbert_classifier --full-train --resume \
+    --data-dir data/processed/splits \
+    --output-dir models/distilbert
+```
+
 ### 3. Run Notebooks
 
 ```bash
 jupyter notebook notebooks/01_data_exploration.ipynb
 jupyter notebook notebooks/02_baseline_classifier.ipynb
+jupyter notebook notebooks/03_distilbert_finetuning.ipynb
 ```
+
+> **Important:** Run `03_distilbert_finetuning.ipynb` on **Google Colab with GPU**. Store Phase 2 split CSVs and all DistilBERT artifacts on **Google Drive** (`MyDrive/mental-health-chatbot/`).
 
 ---
 
@@ -126,6 +147,28 @@ jupyter notebook notebooks/02_baseline_classifier.ipynb
 
 ---
 
-## 🔮 Next Phase: Phase 3 — Fine-Tune DistilBERT Classifier
+## 🤖 Phase 3 — DistilBERT Fine-Tuning
 
-Fine-tune `distilbert-base-uncased` on `data/processed/splits/train.csv` and compare performance against the Phase 2 LinearSVC baseline (`Macro F1 = 0.7392`).
+Fine-tune `distilbert-base-uncased` on the **exact Phase 2 splits** with:
+
+- `max_length=256`
+- Class-weighted `CrossEntropyLoss` (train labels only)
+- Validation **Macro F1** checkpoint selection
+- Checkpoint save/resume
+- Single held-out **test** evaluation after model selection
+- Sample inference with predicted class and softmax probabilities
+
+### Google Colab Full Training Command
+
+After mounting Drive and verifying splits in `notebooks/03_distilbert_finetuning.ipynb`:
+
+```bash
+python -m src.models.distilbert_classifier --full-train \
+    --data-dir /content/drive/MyDrive/mental-health-chatbot/data/processed/splits \
+    --output-dir /content/drive/MyDrive/mental-health-chatbot/models/distilbert \
+    --num-epochs 3 \
+    --batch-size 16 \
+    --lr 2e-5
+```
+
+DistilBERT test metrics will be recorded in `models/distilbert/metadata.json` after Colab training completes. Do not compare against baseline until those metrics exist.

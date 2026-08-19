@@ -4,3 +4,8 @@ scikit-learn
 matplotlib
 seaborn
 jupyter
+joblib
+torch
+transformers
+datasets
+accelerate

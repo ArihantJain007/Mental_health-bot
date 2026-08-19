@@ -39,7 +39,13 @@ Streamlit UI
 ---
 
 ## 3. Current Phase
-**PHASE 2 — BASELINE TEXT CLASSIFIER** (Completed)
+**PHASE 3 — FINE-TUNE DISTILBERT CLASSIFIER** (Implementation Completed & Verified via Smoke Test)
+
+Phase 3 implementation is complete and verified:
+- `src/models/distilbert_classifier.py` — robust training & smoke test pipeline supporting class-weighted loss, CUDA/CPU fallback, checkpoint save/resume, validation Macro F1 selection, and single test set evaluation.
+- `notebooks/03_distilbert_finetuning.ipynb` — Colab-ready notebook with Google Drive artifact persistence and automatic dataset sync.
+- **Local Smoke Test**: Executed and PASSED cleanly on CPU.
+- **Full 3-epoch training**: Deferred to Google Colab GPU by design (full train blocked on CPU without CUDA).
 
 ---
 
@@ -51,9 +57,9 @@ Streamlit UI
 ---
 
 ## 5. Environment & Setup Details
-- **Python Version**: `3.13.3`
+- **Python Version**: `3.13.3` (local); Colab GPU runtime recommended for Phase 3 full training
 - **Virtual Environment**: `.venv`
-- **Installed Package Versions**:
+- **Installed Package Versions (local smoke test)**:
   - `pandas`: `3.0.5`
   - `numpy`: `2.5.2`
   - `scikit-learn`: `1.9.0`
@@ -61,6 +67,8 @@ Streamlit UI
   - `seaborn`: `0.13.2`
   - `joblib`: `1.5.3`
   - `jupyter`: `1.1.1` (notebook `7.6.2`)
+  - `torch`: `2.13.0+cpu`
+  - `transformers`: `5.15.1`
 
 ---
 
@@ -82,7 +90,8 @@ mental-health-chatbot/
 │
 ├── notebooks/
 │   ├── 01_data_exploration.ipynb # Data exploration & cleaning documentation
-│   └── 02_baseline_classifier.ipynb # Baseline classifier experiments & analysis
+│   ├── 02_baseline_classifier.ipynb # Baseline classifier experiments & analysis
+│   └── 03_distilbert_finetuning.ipynb # DistilBERT fine-tuning (Colab GPU)
 │
 ├── src/
 │   ├── __init__.py
@@ -91,24 +100,32 @@ mental-health-chatbot/
 │   │   └── cleaning.py          # Modular, executable dataset cleaning pipeline
 │   └── models/
 │       ├── __init__.py
-│       └── baseline.py          # Modular baseline training & evaluation pipeline
+│       ├── baseline.py          # Modular baseline training & evaluation pipeline
+│       └── distilbert_classifier.py # DistilBERT fine-tuning & smoke test pipeline
 │
 ├── models/
-│   └── baseline/                # Persisted vectorizer, metadata & model artifacts
-│       ├── metadata.json         # Complete experiment reproducibility parameters
-│       ├── tfidf_vectorizer.joblib # Fitted TF-IDF vectorizer (274,360 features)
-│       ├── logistic_regression.joblib # Trained Logistic Regression model
-│       ├── linear_svc.joblib     # Trained LinearSVC model (Selected Baseline)
-│       ├── cm_val_logistic_regression.png # Validation Confusion Matrix
-│       ├── cm_val_linear_svc.png  # Validation Confusion Matrix
-│       └── cm_test_selected_baseline.png # Test Confusion Matrix
+│   ├── baseline/                # Persisted vectorizer, metadata & model artifacts
+│   │   ├── metadata.json
+│   │   ├── tfidf_vectorizer.joblib
+│   │   ├── logistic_regression.joblib
+│   │   ├── linear_svc.joblib
+│   │   ├── cm_val_logistic_regression.png
+│   │   ├── cm_val_linear_svc.png
+│   │   └── cm_test_selected_baseline.png
+│   └── distilbert/              # DistilBERT artifacts (Colab output on Google Drive)
+│       ├── checkpoints/
+│       ├── best_model/
+│       ├── tokenizer/
+│       ├── label_mapping.json
+│       ├── metadata.json
+│       └── plots/
 │
 ├── app/
 │   └── .gitkeep                  # Placeholder for future Streamlit UI app
 │
 ├── PROJECT_CONTEXT.md            # Authoritative project state document
 ├── README.md                     # Setup and execution guide
-├── requirements.txt              # Phase 1 & 2 dependencies
+├── requirements.txt              # Phase 1–3 dependencies
 └── .gitignore                    # Version control exclusion rules
 ```
 
@@ -240,8 +257,73 @@ jupyter notebook notebooks/02_baseline_classifier.ipynb
 
 ---
 
-## 13. Next Phase
-**PHASE 3 — FINE-TUNE DISTILBERT CLASSIFIER**
-- Fine-tune `distilbert-base-uncased` on `data/processed/splits/train.csv`.
-- Evaluate on `data/processed/splits/validation.csv`.
-- Compare DistilBERT performance against Phase 2 LinearSVC baseline (`Macro F1 = 0.7392`).
+## 13. Phase 3 — DistilBERT Fine-Tuning
+
+### Implementation Summary
+- **Model**: `distilbert-base-uncased`
+- **Module**: `src/models/distilbert_classifier.py`
+- **Notebook**: `notebooks/03_distilbert_finetuning.ipynb` (Google Colab + Google Drive)
+- **Max sequence length**: `256`
+- **Loss**: Class-weighted `CrossEntropyLoss` computed from **train labels only**
+- **Checkpoint selection**: Validation **Macro F1** (`metric_for_best_model="macro_f1"`)
+- **Test evaluation**: Held-out test set evaluated **once** after best model selection
+- **CUDA guard**: `--full-train` exits safely if no GPU is available
+- **Resume**: `--resume` loads latest checkpoint from `output_dir/checkpoints/`
+
+### Local Smoke Test (Windows CPU — verified, no full training)
+```bash
+python -m src.models.distilbert_classifier --smoke-test
+```
+
+Smoke test verifies:
+- Tokenizer load
+- Model initialization
+- Class weight calculation
+- Micro-batch forward pass
+- Weighted loss computation
+- Checkpoint save/load
+- Sample inference with predicted class and softmax probabilities
+
+### Google Colab Full Training Command
+Upload Phase 2 split CSVs to Google Drive at:
+`MyDrive/mental-health-chatbot/data/processed/splits/`
+
+Then run:
+```bash
+python -m src.models.distilbert_classifier --full-train \
+    --data-dir /content/drive/MyDrive/mental-health-chatbot/data/processed/splits \
+    --output-dir /content/drive/MyDrive/mental-health-chatbot/models/distilbert \
+    --num-epochs 3 \
+    --batch-size 16 \
+    --lr 2e-5
+```
+
+Resume interrupted training:
+```bash
+python -m src.models.distilbert_classifier --full-train --resume \
+    --data-dir /content/drive/MyDrive/mental-health-chatbot/data/processed/splits \
+    --output-dir /content/drive/MyDrive/mental-health-chatbot/models/distilbert
+```
+
+### Expected Colab Artifacts (Google Drive)
+| Path | Description |
+| :--- | :--- |
+| `models/distilbert/checkpoints/` | Epoch checkpoints for resume |
+| `models/distilbert/best_model/` | Best validation Macro F1 model |
+| `models/distilbert/tokenizer/` | Saved tokenizer |
+| `models/distilbert/label_mapping.json` | Canonical label mapping |
+| `models/distilbert/metadata.json` | Training config, class weights, val/test metrics |
+| `models/distilbert/plots/` | Validation and test confusion matrices |
+
+### DistilBERT Metrics Status
+**Not yet recorded** — full training has not been executed on Colab GPU in this session. After Colab training, update this section with validation/test metrics from `metadata.json`.
+
+### Baseline Comparison Targets (Phase 2 LinearSVC)
+- Validation Macro F1: `0.7392`
+- Test Macro F1: `0.7165`
+
+---
+
+## 14. Next Phase
+**PHASE 4 — STREAMLIT UI + GEMINI INTEGRATION**
+- Build Streamlit chat interface wiring DistilBERT predictions to Gemini conversational responses.
